@@ -26,6 +26,12 @@ class TestDataloader(unittest.TestCase):
             self.assertEqual(batch_size_dim, batch_size)
             self.assertEqual(feature_length_dim, 128)
 
+            self.assertIn("spectrogram_length", batch)  # [int] torch.tensor
+            # contains lengths of each text entry
+            self.assertEqual(len(batch["spectrogram_length"].shape), 1)
+            batch_size_dim = batch["spectrogram_length"].shape[0]
+            self.assertEqual(batch_size_dim, batch_size)
+
             self.assertIn("text_encoded", batch)  # [int] torch.tensor
             # joined and padded indexes representation of transcriptions
             batch_size_dim, text_length_dim = batch["text_encoded"].shape

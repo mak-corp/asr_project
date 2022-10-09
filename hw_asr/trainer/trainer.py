@@ -85,8 +85,10 @@ class Trainer(BaseTrainer):
         self.train_metrics.reset()
         self.writer.add_scalar("epoch", epoch)
         for batch_idx, batch in enumerate(
-                tqdm(self.train_dataloader, desc="train", total=self.len_epoch)
+                tqdm(self.train_dataloader, desc="train", total=self.len_epoch), start=1
         ):
+            if batch_idx > self.len_epoch:
+                break
             try:
                 batch = self.process_batch(
                     batch,
@@ -104,8 +106,8 @@ class Trainer(BaseTrainer):
                 else:
                     raise e
             self.train_metrics.update("grad norm", self.get_grad_norm())
-            if batch_idx % self.log_step == 0:
-                self.writer.set_step((epoch - 1) * self.len_epoch + batch_idx)
+            if batch_idx % self.log_step == 0 or batch_idx == 1:
+                self.writer.set_step((epoch - 1) * self.len_epoch + batch_idx - 1)
                 self.logger.debug(
                     "Train Epoch: {} {} Loss: {:.6f}".format(
                         epoch, self._progress(batch_idx), batch["loss"].item()
@@ -121,8 +123,7 @@ class Trainer(BaseTrainer):
                 # because we are interested in recent train metrics
                 last_train_metrics = self.train_metrics.result()
                 self.train_metrics.reset()
-            if batch_idx >= self.len_epoch:
-                break
+            
         log = last_train_metrics
 
         for part, dataloader in self.evaluation_dataloaders.items():
@@ -169,7 +170,7 @@ class Trainer(BaseTrainer):
         self.evaluation_metrics.reset()
         with torch.no_grad():
             for batch_idx, batch in tqdm(
-                    enumerate(dataloader),
+                    enumerate(dataloader, start=1),
                     desc=part,
                     total=len(dataloader),
             ):
@@ -218,21 +219,37 @@ class Trainer(BaseTrainer):
         ]
         argmax_texts_raw = [self.text_encoder.decode(inds) for inds in argmax_inds]
         argmax_texts = [self.text_encoder.ctc_decode(inds) for inds in argmax_inds]
-        tuples = list(zip(argmax_texts, text, argmax_texts_raw, audio_path))
+
+        # probs = log_probs.exp().cpu()
+        # beam_search_texts = [
+        #     self.text_encoder.ctc_beam_search(sample_probs, sample_probs_length, beam_size=100)[:3]
+        #     for sample_probs, sample_probs_length in zip(probs, log_probs_length.cpu())
+        # ]
+        beam_search_texts = argmax_texts
+
+        tuples = list(zip(argmax_texts, beam_search_texts, text, argmax_texts_raw, audio_path))
         shuffle(tuples)
         rows = {}
-        for pred, target, raw_pred, audio_path in tuples[:examples_to_log]:
+        for argmax_pred, beam_search_pred, target, raw_pred, audio_path in tuples[:examples_to_log]:
             target = BaseTextEncoder.normalize_text(target)
-            wer = calc_wer(target, pred) * 100
-            cer = calc_cer(target, pred) * 100
+
+            argmax_wer = calc_wer(target, argmax_pred) * 100
+            argmax_cer = calc_cer(target, argmax_pred) * 100
+
+            beam_search_wer = calc_wer(target, beam_search_pred) * 100
+            beam_search_cer = calc_cer(target, beam_search_pred) * 100
 
             rows[Path(audio_path).name] = {
                 "target": target,
                 "raw prediction": raw_pred,
-                "predictions": pred,
-                "wer": wer,
-                "cer": cer,
+                "argmax predictions": argmax_pred,
+                "argmax wer": argmax_wer,
+                "argmax cer": argmax_cer,
+                "beam search predictions": beam_search_pred,
+                "beam search wer": beam_search_wer,
+                "beam search cer": beam_search_cer,
             }
+
         self.writer.add_table("predictions", pd.DataFrame.from_dict(rows, orient="index"))
 
     def _log_spectrogram(self, spectrogram_batch):
