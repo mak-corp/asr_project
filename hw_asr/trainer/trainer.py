@@ -278,7 +278,7 @@ class Trainer(BaseTrainer):
         self.writer.add_image("spectrogram", ToTensor()(image))
 
     def _log_audio(self, audio_batch):
-        audio = random.choice(audio_batch.cpu())
+        audio = random.choice(audio_batch)
         self.writer.add_audio("audio", audio, self.config["preprocessing"]["sr"])
 
     @torch.no_grad()
