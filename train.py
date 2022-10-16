@@ -53,6 +53,10 @@ def main(config):
     # disabling scheduler
     trainable_params = filter(lambda p: p.requires_grad, model.parameters())
     optimizer = config.init_obj(config["optimizer"], torch.optim, trainable_params)
+
+    if config["lr_scheduler"]["args"].get("step_size", None) == -1:
+        print("Setting lr_scheduler step_size to", len(dataloaders["train"]))
+        config["lr_scheduler"]["args"]["step_size"] = len(dataloaders["train"])
     lr_scheduler = config.init_obj(config["lr_scheduler"], torch.optim.lr_scheduler, optimizer)
 
     trainer = Trainer(
