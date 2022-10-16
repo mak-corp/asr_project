@@ -7,7 +7,7 @@ class GroupLengthBatchSampler(Sampler):
         self.epochs = 0
         self.sequential = BatchSampler(SequentialSampler(data_source), batch_size=batch_size, drop_last=drop_last)
         self.random = BatchSampler(RandomSampler(data_source), batch_size=batch_size, drop_last=drop_last)
-        self.len = len(data_source)
+        self.len = len(data_source) // batch_size
 
     def __iter__(self):
         self.epochs += 1
