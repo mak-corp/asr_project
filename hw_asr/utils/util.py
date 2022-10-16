@@ -38,6 +38,9 @@ def prepare_device(n_gpu_use):
     setup GPU device if available. get gpu device indices which are used for DataParallel
     """
     n_gpu = torch.cuda.device_count()
+    print("Total GPU count:", n_gpu)
+    if n_gpu_use == -1:
+        n_gpu_use = n_gpu
     if n_gpu_use > 0 and n_gpu == 0:
         print(
             "Warning: There's no GPU available on this machine,"

@@ -87,6 +87,9 @@ class Trainer(BaseTrainer):
         for batch_idx, batch in enumerate(
                 tqdm(self.train_dataloader, desc="train", total=self.len_epoch), start=1
         ):
+            if 'error' in batch:
+                continue
+
             if batch_idx > self.len_epoch:
                 break
             try:
@@ -116,7 +119,7 @@ class Trainer(BaseTrainer):
                 self.writer.add_scalar(
                     "learning rate", self.lr_scheduler.get_last_lr()[0]
                 )
-                self._log_predictions(**batch)
+                self._log_predictions(is_train=True, **batch)
                 self._log_spectrogram(batch["spectrogram"])
                 self._log_scalars(self.train_metrics)
                 # we don't want to reset train metrics at the start of every epoch
@@ -181,7 +184,7 @@ class Trainer(BaseTrainer):
                 )
             self.writer.set_step(epoch * self.len_epoch, part)
             self._log_scalars(self.evaluation_metrics)
-            self._log_predictions(**batch)
+            self._log_predictions(is_train=False, **batch)
             self._log_spectrogram(batch["spectrogram"])
 
         # add histogram of model parameters to the tensorboard
@@ -201,11 +204,14 @@ class Trainer(BaseTrainer):
 
     def _log_predictions(
             self,
+            is_train,
             text,
             log_probs,
             log_probs_length,
             audio_path,
             examples_to_log=10,
+            beam_size=100,
+            beam_search_top=3,
             *args,
             **kwargs,
     ):
@@ -220,12 +226,16 @@ class Trainer(BaseTrainer):
         argmax_texts_raw = [self.text_encoder.decode(inds) for inds in argmax_inds]
         argmax_texts = [self.text_encoder.ctc_decode(inds) for inds in argmax_inds]
 
-        # probs = log_probs.exp().cpu()
-        # beam_search_texts = [
-        #     self.text_encoder.ctc_beam_search(sample_probs, sample_probs_length, beam_size=100)[:3]
-        #     for sample_probs, sample_probs_length in zip(probs, log_probs_length.cpu())
-        # ]
-        beam_search_texts = argmax_texts
+
+        if not is_train:
+            probs = log_probs.exp().cpu()
+            beam_search_texts = [
+                self.text_encoder.ctc_beam_search(sample_probs, sample_probs_length, beam_size=beam_size)[:beam_search_top]
+                for sample_probs, sample_probs_length in zip(probs, log_probs_length.cpu())
+            ]
+        else:
+            beam_search_texts = argmax_texts
+
 
         tuples = list(zip(argmax_texts, beam_search_texts, text, argmax_texts_raw, audio_path))
         shuffle(tuples)
@@ -236,19 +246,24 @@ class Trainer(BaseTrainer):
             argmax_wer = calc_wer(target, argmax_pred) * 100
             argmax_cer = calc_cer(target, argmax_pred) * 100
 
-            beam_search_wer = calc_wer(target, beam_search_pred) * 100
-            beam_search_cer = calc_cer(target, beam_search_pred) * 100
-
-            rows[Path(audio_path).name] = {
+            predictions = {
                 "target": target,
                 "raw prediction": raw_pred,
                 "argmax predictions": argmax_pred,
                 "argmax wer": argmax_wer,
                 "argmax cer": argmax_cer,
-                "beam search predictions": beam_search_pred,
-                "beam search wer": beam_search_wer,
-                "beam search cer": beam_search_cer,
             }
+
+            if not is_train:
+                beam_search_wer = calc_wer(target, beam_search_pred[0].text) * 100
+                beam_search_cer = calc_cer(target, beam_search_pred[0].text) * 100
+                predictions.update({
+                    "beam search predictions": beam_search_pred,
+                    "beam search wer": beam_search_wer,
+                    "beam search cer": beam_search_cer,
+                })
+
+            rows[Path(audio_path).name] = predictions
 
         self.writer.add_table("predictions", pd.DataFrame.from_dict(rows, orient="index"))
 

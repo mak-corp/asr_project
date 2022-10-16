@@ -35,6 +35,8 @@ def get_dataloaders(configs: ConfigParser, text_encoder: BaseTextEncoder):
         else:
             dataset = datasets[0]
 
+        print(f"Dataset {split} length:", len(dataset))
+
         # select batch size or batch sampler
         assert xor("batch_size" in params, "batch_sampler" in params), \
             "You must provide batch_size or batch_sampler for each split"
@@ -46,6 +48,7 @@ def get_dataloaders(configs: ConfigParser, text_encoder: BaseTextEncoder):
             batch_sampler = configs.init_obj(params["batch_sampler"], batch_sampler_module,
                                              data_source=dataset)
             bs, shuffle = 1, False
+            drop_last = False
         else:
             raise Exception()
 
