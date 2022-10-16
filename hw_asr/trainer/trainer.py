@@ -121,6 +121,7 @@ class Trainer(BaseTrainer):
                 )
                 self._log_predictions(is_train=True, **batch)
                 self._log_spectrogram(batch["spectrogram"])
+                self._log_audio(batch["audio"])
                 self._log_scalars(self.train_metrics)
                 # we don't want to reset train metrics at the start of every epoch
                 # because we are interested in recent train metrics
@@ -182,10 +183,12 @@ class Trainer(BaseTrainer):
                     is_train=False,
                     metrics=self.evaluation_metrics,
                 )
+            print("Do eval logging...")
             self.writer.set_step(epoch * self.len_epoch, part)
             self._log_scalars(self.evaluation_metrics)
             self._log_predictions(is_train=False, **batch)
             self._log_spectrogram(batch["spectrogram"])
+            self._log_audio(batch["audio"])
 
         # add histogram of model parameters to the tensorboard
         for name, p in self.model.named_parameters():
@@ -226,8 +229,10 @@ class Trainer(BaseTrainer):
         argmax_texts_raw = [self.text_encoder.decode(inds) for inds in argmax_inds]
         argmax_texts = [self.text_encoder.ctc_decode(inds) for inds in argmax_inds]
 
+        is_train = True  # Disabled beam search
 
         if not is_train:
+            print("Do beam search")
             probs = log_probs.exp().cpu()
             beam_search_texts = [
                 self.text_encoder.ctc_beam_search(sample_probs, sample_probs_length, beam_size=beam_size)[:beam_search_top]
@@ -271,6 +276,10 @@ class Trainer(BaseTrainer):
         spectrogram = random.choice(spectrogram_batch.cpu())
         image = PIL.Image.open(plot_spectrogram_to_buf(spectrogram))
         self.writer.add_image("spectrogram", ToTensor()(image))
+
+    def _log_audio(self, audio_batch):
+        audio = random.choice(audio_batch.cpu())
+        self.writer.add_audio("audio", audio, self.config["preprocessing"]["sr"])
 
     @torch.no_grad()
     def get_grad_norm(self, norm_type=2):
