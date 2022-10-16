@@ -86,7 +86,7 @@
   "lr_scheduler": {
     "type": "StepLR",
     "args": {
-      "step_size": -1,
+      "step_size": 100,
       "gamma": 0.833
     }
   },
