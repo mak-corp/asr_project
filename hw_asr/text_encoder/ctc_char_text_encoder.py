@@ -1,8 +1,9 @@
-from typing import List, NamedTuple
+from typing import List, Union, NamedTuple
 
 import torch
 from operator import itemgetter
 from collections import defaultdict
+from pyctcdecode import build_ctcdecoder
 
 from .char_text_encoder import CharTextEncoder
 
@@ -16,11 +17,33 @@ class CTCCharTextEncoder(CharTextEncoder):
     EMPTY_TOK = "^"
     EMPTY_IND = 0
 
-    def __init__(self, alphabet: List[str] = None):
+    def __init__(self, alphabet: Union[List[str], str] = None,
+                 use_custom_beam_search = True,
+                 vocab_path = None, lm_path = None,
+                 alpha=0.7, beta=0.1):
+        if isinstance(alphabet, str):
+            alphabet = [ch for ch in alphabet]
         super().__init__(alphabet)
         vocab = [self.EMPTY_TOK] + list(self.alphabet)
         self.ind2char = dict(enumerate(vocab))
         self.char2ind = {v: k for k, v in self.ind2char.items()}
+
+        if not use_custom_beam_search and vocab_path and lm_path:
+            print("Use fast CTC beam search with LM")
+            with open(vocab_path) as f:
+                unigrams = [line.strip() for line in f]
+
+            up_vocab = [ch.upper() for ch in [''] + self.alphabet]
+            self.decoder = build_ctcdecoder(
+                up_vocab,
+                alpha=alpha,
+                beta=beta,
+                kenlm_model_path=lm_path,
+                unigrams=unigrams,
+            )
+        else:
+            print("Use custom CTC beam search")
+            self.decoder = None
 
     def ctc_decode(self, inds: List[int]) -> str:
         last_ind = self.EMPTY_IND
@@ -48,12 +71,8 @@ class CTCCharTextEncoder(CharTextEncoder):
     def _cut_beams(self, dp, beam_size):
         return sorted(dp.items(), key=itemgetter(1), reverse=True)[:beam_size]
 
-    def ctc_beam_search(self, probs: torch.tensor, probs_length,
+    def custom_ctc_beam_search(self, probs: torch.tensor, probs_length,
                         beam_size: int = 100) -> List[Hypothesis]:
-        """
-        Performs beam search and returns a list of pairs (hypothesis, hypothesis probability).
-        """
-        assert len(probs.shape) == 2
         char_length, voc_size = probs.shape
         assert voc_size == len(self.ind2char)
 
@@ -65,3 +84,19 @@ class CTCCharTextEncoder(CharTextEncoder):
         dp = self._cut_beams(dp, beam_size)
 
         return [Hypothesis(text.strip(), proba) for (text, last_char), proba in dp]
+
+    def fast_ctc_beam_search(self, probs: torch.tensor, probs_length,
+                        beam_size: int = 100) -> List[Hypothesis]:
+        logits = probs[:probs_length].cpu().numpy()
+        text = self.decoder.decode(logits, beam_width=beam_size).lower()
+        return [Hypothesis(text, 1.0)]
+
+    def ctc_beam_search(self, probs: torch.tensor, probs_length,
+                        beam_size: int = 100) -> List[Hypothesis]:
+        """
+        Performs beam search and returns a list of pairs (hypothesis, hypothesis probability).
+        """
+        assert len(probs.shape) == 2
+        if self.decoder:
+            return self.fast_ctc_beam_search(probs, probs_length, beam_size)
+        return self.custom_ctc_beam_search(probs, probs_length, beam_size)

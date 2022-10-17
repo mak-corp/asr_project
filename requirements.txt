@@ -5,6 +5,8 @@ tqdm
 tensorboard
 matplotlib
 pandas
+pyctcdecode
+https://github.com/kpu/kenlm/archive/master.zip
 
 speechbrain~=0.5.12
 datasets

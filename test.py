@@ -6,11 +6,14 @@ from pathlib import Path
 import torch
 from tqdm import tqdm
 
+import numpy as np
+
 import hw_asr.model as module_model
 from hw_asr.trainer import Trainer
 from hw_asr.utils import ROOT_PATH
 from hw_asr.utils.object_loading import get_dataloaders
 from hw_asr.utils.parse_config import ConfigParser
+from hw_asr.metric.utils import calc_wer, calc_cer
 
 DEFAULT_CHECKPOINT_PATH = ROOT_PATH / "default_test_model" / "checkpoint.pth"
 
@@ -43,6 +46,8 @@ def main(config, out_file):
     model.eval()
 
     results = []
+    wers, cers = [], []
+    wers_argmax, cers_argmax = [], []
 
     with torch.no_grad():
         for batch_num, batch in enumerate(tqdm(dataloaders["test"])):
@@ -58,18 +63,36 @@ def main(config, out_file):
             )
             batch["probs"] = batch["log_probs"].exp().cpu()
             batch["argmax"] = batch["probs"].argmax(-1)
+
             for i in range(len(batch["text"])):
                 argmax = batch["argmax"][i]
                 argmax = argmax[: int(batch["log_probs_length"][i])]
+                original_text = text_encoder.normalize_text(batch["text"][i])
+                text_argmax = text_encoder.ctc_decode(argmax.cpu().numpy())
+                texts_beam_search = text_encoder.ctc_beam_search(
+                    batch["probs"][i], batch["log_probs_length"][i], beam_size=100
+                )[:10]
+
+                wers.append(calc_wer(original_text, texts_beam_search[0].text))
+                cers.append(calc_cer(original_text, texts_beam_search[0].text))
+                wers_argmax.append(calc_wer(original_text, text_argmax))
+                cers_argmax.append(calc_cer(original_text, text_argmax))
+
                 results.append(
                     {
                         "ground_truth": batch["text"][i],
-                        "pred_text_argmax": text_encoder.ctc_decode(argmax.cpu().numpy()),
-                        "pred_text_beam_search": text_encoder.ctc_beam_search(
-                            batch["probs"][i], batch["log_probs_length"][i], beam_size=100
-                        )[:10],
+                        "pred_text_argmax": text_argmax,
+                        "pred_text_beam_search": texts_beam_search
                     }
                 )
+
+    print("===========================================")
+    print("WER (argmax):", np.array(wers_argmax).mean())
+    print("CER (argmax):", np.array(cers_argmax).mean())
+    print("WER (beam search):", np.array(wers).mean())
+    print("CER (beam search):", np.array(cers).mean())
+    print("===========================================")
+
     with Path(out_file).open("w") as f:
         json.dump(results, f, indent=2)
 

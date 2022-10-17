@@ -22,6 +22,16 @@
       "n_rnns": 3
     }
   },
+  "text_encoder": {
+    "type": "CTCCharTextEncoder",
+    "args": {
+      "use_custom_beam_search": false,
+      "vocab_path": "librispeech-vocab.txt",
+      "lm_path": "lm.arpa",
+      "alpha": 0.7,
+      "beta": 0.1
+    }
+  },
   "data": {
     "train": {
       "batch_sampler": {
