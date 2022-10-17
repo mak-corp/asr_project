@@ -11,6 +11,12 @@ wget https://www.openslr.org/resources/11/3-gram.pruned.1e-7.arpa.gz -O lm.arpa.
 gzip -d lm.arpa.gz
 rm -f lm.arpa.gz
 wget https://www.openslr.org/resources/11/librispeech-vocab.txt
+
+python3 -c "
+import yadisk
+y = yadisk.YaDisk()
+y.download_public('https://disk.yandex.ru/d/AXWU1_3QfLzqQw', 'default_test_model/checkpoint.pth')
+"
 ```
 
 ## Recommended implementation order

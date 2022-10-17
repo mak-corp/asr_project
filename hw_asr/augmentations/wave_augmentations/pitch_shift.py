@@ -4,9 +4,9 @@ from torch import Tensor
 from hw_asr.augmentations.base import AugmentationBase
 
 
-class Gain(AugmentationBase):
-    def __init__(self, gain, gain_type='amplitude'):
-        self._aug = torchaudio.transforms.Vol(gain, gain_type)
+class PitchShift(AugmentationBase):
+    def __init__(self, sample_rate, n_steps):
+        self._aug = torchaudio.transforms.PitchShift(sample_rate, n_steps)
 
     def __call__(self, data: Tensor):
         return self._aug(data)

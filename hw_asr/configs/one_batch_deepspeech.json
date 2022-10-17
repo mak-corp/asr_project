@@ -11,8 +11,42 @@
     "log_spec": true
   },
   "augmentations": {
-    "wave": [],
-    "spectrogram": []
+    "wave": [
+      {
+        "type": "Gain",
+        "args": {
+          "gain": 0.5
+        }
+      },
+      {
+        "type": "PitchShift",
+        "args": {
+          "sample_rate": 16000,
+          "n_steps": 4
+        }
+      },
+      {
+        "type": "TimeStretch",
+        "args": {
+          "rate": 1.2
+        }
+      }
+    ],
+    "spectrogram": [
+      {
+        "type": "FrequencyMasking",
+        "args": {
+          "freq_mask_param": 25
+        }
+      },
+      {
+        "type": "TimeMasking",
+        "args": {
+          "time_mask_param": 10,
+          "p": 0.05
+        }
+      }
+    ]
   },
   "arch": {
     "type": "DeepSpeech2",

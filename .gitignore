@@ -105,6 +105,9 @@ data/
 input/
 saved/
 wandb/
+default_test_model/checkpoint.pth
+librispeech-vocab.txt
+lm.arpa
 
 # editor, os cache directory
 .vscode/
