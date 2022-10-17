@@ -6,6 +6,11 @@
 
 ```shell
 pip install -r ./requirements.txt
+
+wget https://www.openslr.org/resources/11/3-gram.pruned.1e-7.arpa.gz -O lm.arpa.gz
+gzip -d lm.arpa.gz
+rm -f lm.arpa.gz
+wget https://www.openslr.org/resources/11/librispeech-vocab.txt
 ```
 
 ## Recommended implementation order
@@ -13,7 +18,7 @@ pip install -r ./requirements.txt
 You might be a little intimidated by the number of folders and classes. Try to follow this steps to gradually undestand
 the workflow.
 
-1) Test `hw_asr/tests/test_dataset.py`  and `hw_asr/tests/test_config.py` and make sure everythin works for you
+1) Test `hw_asr/tests/test_dataset.py`  and `hw_asr/tests/test_config.py` and make sure everything works for you
 2) Implement missing functions to fix tests in  `hw_asr\tests\test_text_encoder.py`
 3) Implement missing functions to fix tests in  `hw_asr\tests\test_dataloader.py`
 4) Implement functions in `hw_asr\metric\utils.py`
